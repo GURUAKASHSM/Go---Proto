@@ -143,6 +143,10 @@
 
                     let protoType = fieldType;
 
+                    if(protoType === "primitive.ObjectID"){
+                        protoType = 'string';
+                    }
+
                     // Handle time.Time fields
                     if (protoType === 'time.Time') {
                         protoType = 'google.protobuf.Timestamp';
