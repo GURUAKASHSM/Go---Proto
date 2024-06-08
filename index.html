@@ -38,9 +38,9 @@
             font-size: inherit;
             width: 100%;
             max-width: 900px;
-            
-            overflow-y:calc(+10);
-           
+
+            overflow-y: calc(+10);
+
         }
 
         /* Style for the growing textarea */
@@ -122,52 +122,59 @@
 
 
         function convertGoStructToProto(goStruct) {
-    const lines = goStruct.split('\n');
-    const structNameMatch = lines[0].match(/type (\w+) struct/);
+            const lines = goStruct.split('\n');
+            const structNameMatch = lines[0].match(/type (\w+) struct/);
 
-    if (!structNameMatch) {
-        return 'Invalid Go struct format.';
-    }
-
-    const structName = structNameMatch[1];
-    const fields = lines.slice(1, -1);
-
-    let protoMessage = `message ${structName} {\n`;
-
-    let fieldNumber = 1;
-    fields.forEach(field => {
-        const match = field.trim().match(/(\w+)\s+(\[\])?(\w+)\s+`json:"([^"]+)"(\s+bson:"([^"]+)")?(\s+validate:"([^"]+)")?`/);
-        if (match) {
-            const [, fieldName, isArray, fieldType, jsonTag, , bsonTag, , validateTag] = match;
-
-            let protoType = fieldType;
-
-            if (isArray) {
-                protoType = `repeated ${protoType}`;
+            if (!structNameMatch) {
+                return 'Invalid Go struct format.';
             }
 
-            let tags = `\n     json_name = "${jsonTag.split(',')[0]}",\n     (tagger.tags) = "json:\\"${jsonTag}\\"`;
+            const structName = structNameMatch[1];
+            const fields = lines.slice(1, -1);
 
-            if (bsonTag) {
-                tags += ` bson:\\"${bsonTag}\\"`;
-            }
+            let protoMessage = `message ${structName} {\n`;
 
-            if (validateTag) {
-                tags += ` validate:\\"${validateTag}\\"`;
-            }
+            let fieldNumber = 1;
+            fields.forEach(field => {
+                const match = field.trim().match(/(\w+)\s+(\[\])?([\w\.]+)\s+`json:"([^"]+)"(\s+bson:"([^"]+)")?(\s+validate:"([^"]+)")?`/);
 
-            tags += ` "`;
+                if (match) {
+                    const [, fieldName, isArray, fieldType, jsonTag, , bsonTag, , validateTag] = match;
 
-            protoMessage += `  ${protoType} ${fieldName} = ${fieldNumber} [${tags}\n  ];\n\n`;
+                    let protoType = fieldType;
 
-            fieldNumber++;
+                    // Handle time.Time fields
+                    if (protoType === 'time.Time') {
+                        protoType = 'google.protobuf.Timestamp';
+                    }
+
+                    if (isArray) {
+                        protoType = `repeated ${protoType}`;
+                    }
+
+                    let tags = `\n     json_name = "${jsonTag.split(',')[0]}",\n     (tagger.tags) = "json:\\"${jsonTag}\\"`;
+
+                    if (bsonTag) {
+                        tags += ` bson:\\"${bsonTag}\\"`;
+                    }
+
+                    if (validateTag) {
+                        tags += ` validate:\\"${validateTag}\\"`;
+                    }
+
+                    tags += ` "`;
+
+                    protoMessage += `  ${protoType} ${fieldName} = ${fieldNumber} [${tags}\n  ];\n\n`;
+
+                    fieldNumber++;
+                }
+            });
+
+            protoMessage += `}`;
+
+            return protoMessage;
         }
-    });
 
-    protoMessage += `}`;
-
-    return protoMessage;
-}
 
     </script>
 </body>
