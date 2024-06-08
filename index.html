@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Struct to Proto Converter</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+    <style>
+        body {
+            background-color: #1f1f1f;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1,
+        h2 {
+            color: #ff6600;
+            text-align: center;
+        }
+
+        textarea {
+            background-color: #333;
+            border: none;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: inherit;
+            width: 100%;
+            max-width: 900px;
+            
+            overflow-y:calc(+10);
+           
+        }
+
+        /* Style for the growing textarea */
+        textarea.auto-expand {
+            min-height: 100px;
+            /* Set a minimum height */
+        }
+
+        /* Style for the proto output textarea */
+        pre {
+            background-color: #333;
+            border: none;
+            color: #fff;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 16px;
+            line-height: 1.5;
+            width: 100%;
+            max-width: 900px;
+            min-height: 100px;
+            /* Set a minimum height */
+            overflow: auto;
+            /* Enable scrolling if content exceeds the height */
+        }
+
+
+        .copy-icon {
+            cursor: pointer;
+            color: #ff6600;
+            margin-left: 900px;
+            padding-bottom: 10px;
+        }
+
+        .copy-icon:hover {
+            color: #ff8533;
+
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Go Struct to Proto Converter</h1>
+    <i class="far fa-copy copy-icon" onclick="copyInput()"></i>
+    <textarea id="goStructInput" rows="10" placeholder="Paste your Go struct here..."></textarea>
+    <h2>Proto Output</h2>
+    <i class="far fa-copy copy-icon" onclick="copyOutput()"></i>
+    <pre id="protoOutput"></pre>
+
+
+
+    <script>
+        function copyInput() {
+            const input = document.getElementById('goStructInput');
+            input.select();
+            document.execCommand('copy');
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('protoOutput');
+            const range = document.createRange();
+            range.selectNode(output);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+        }
+
+        document.getElementById('goStructInput').addEventListener('input', function () {
+            convertStruct();
+        });
+
+        function convertStruct() {
+            const goStruct = document.getElementById('goStructInput').value;
+            const protoOutput = convertGoStructToProto(goStruct);
+            document.getElementById('protoOutput').innerText = protoOutput;
+        }
+
+
+        function convertGoStructToProto(goStruct) {
+    const lines = goStruct.split('\n');
+    const structNameMatch = lines[0].match(/type (\w+) struct/);
+
+    if (!structNameMatch) {
+        return 'Invalid Go struct format.';
+    }
+
+    const structName = structNameMatch[1];
+    const fields = lines.slice(1, -1);
+
+    let protoMessage = `message ${structName} {\n`;
+
+    let fieldNumber = 1;
+    fields.forEach(field => {
+        const match = field.trim().match(/(\w+)\s+(\[\])?(\w+)\s+`json:"([^"]+)"(\s+bson:"([^"]+)")?(\s+validate:"([^"]+)")?`/);
+        if (match) {
+            const [, fieldName, isArray, fieldType, jsonTag, , bsonTag, , validateTag] = match;
+
+            let protoType = fieldType;
+
+            if (isArray) {
+                protoType = `repeated ${protoType}`;
+            }
+
+            let tags = `\n     json_name = "${jsonTag.split(',')[0]}",\n     (tagger.tags) = "json:\\"${jsonTag}\\"`;
+
+            if (bsonTag) {
+                tags += ` bson:\\"${bsonTag}\\"`;
+            }
+
+            if (validateTag) {
+                tags += ` validate:\\"${validateTag}\\"`;
+            }
+
+            tags += ` "`;
+
+            protoMessage += `  ${protoType} ${fieldName} = ${fieldNumber} [${tags}\n  ];\n\n`;
+
+            fieldNumber++;
+        }
+    });
+
+    protoMessage += `}`;
+
+    return protoMessage;
+}
+
+    </script>
+</body>
+
+</html>
