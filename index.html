@@ -87,6 +87,8 @@
     <h1>Go Struct to Proto Converter</h1>
     <i class="far fa-copy copy-icon" onclick="copyInput()"></i>
     <textarea id="goStructInput" rows="10" placeholder="Paste your Go struct here..."></textarea>
+    <h5 style="padding: 5px;margin: 0px;">No of Data in Struct &nbsp;&nbsp;&nbsp;&nbsp;:  <span id="struct">0</span></h5>
+    <h5 style="padding: 0px;margin: 0px;">No of Data in Message : <span id="message">0</span></h5>
     <h2>Proto Output</h2>
     <i class="far fa-copy copy-icon" onclick="copyOutput()"></i>
     <pre id="protoOutput"></pre>
@@ -116,10 +118,21 @@
 
         function convertStruct() {
             const goStruct = document.getElementById('goStructInput').value;
-            const protoOutput = convertGoStructToProto(goStruct);
+            document.getElementById("struct").innerHTML = countFieldsInGoStruct(goStruct)
+            const protoOutput = convertGoStructToProto(goStruct);  
             document.getElementById('protoOutput').innerText = protoOutput;
         }
 
+        function countFieldsInGoStruct(structDefinition) {
+            // Regular expression to match fields in the struct
+            const fieldRegex = /^[ \t]*[A-Za-z0-9_]+[ \t]+\*?[A-Za-z0-9_]+[ \t]*(?:`[^`]*`)?[ \t]*$/gm;
+
+            // Find all matches
+            const matches = structDefinition.match(fieldRegex);
+
+            // Return the number of matches or 0 if no matches are found
+            return matches ? matches.length : 0;
+        }
 
         function convertGoStructToProto(goStruct) {
             const lines = goStruct.split('\n');
@@ -136,14 +149,20 @@
 
             let fieldNumber = 1;
             fields.forEach(field => {
-                const match = field.trim().match(/(\w+)\s+(\[\])?([\w\.]+)\s+`json:"([^"]+)"(\s+bson:"([^"]+)")?(\s+validate:"([^"]+)")?`/);
+                const match = field.trim().match(/(\w+)\s+(\*?\[\])?(\*?[\w\.]+)?(\s+`json:"([^"]+)"(\s+bson:"([^"]+)")?(\s+validate:"([^"]+)")?`)?/);
 
                 if (match) {
-                    const [, fieldName, isArray, fieldType, jsonTag, , bsonTag, , validateTag] = match;
+                    var [, fieldName, isArray, fieldType, , jsonTag, , bsonTag, , validateTag] = match;
 
-                    let protoType = fieldType;
+                    fieldName = fieldName.charAt(0).toLowerCase() + fieldName.slice(1);
 
-                    if(protoType === "primitive.ObjectID"){
+                    let protoType = fieldType || "string";
+
+                    if (protoType.startsWith('*')) {
+                        protoType = protoType.substring(1);
+                    }
+
+                    if (protoType === "primitive.ObjectID") {
                         protoType = 'string';
                     }
 
@@ -153,28 +172,42 @@
                     }
 
                     if (isArray) {
-                        protoType = `repeated ${protoType}`;
+                        if (isArray.startsWith('*')) {
+                            protoType = `repeated ${protoType}`;
+                        } else {
+                            protoType = `repeated ${protoType}`;
+                        }
                     }
 
-                    let tags = `\n     json_name = "${jsonTag.split(',')[0]}",\n     (tagger.tags) = "json:\\"${jsonTag}\\"`;
+                    protoMessage += `  ${protoType} ${fieldName} = ${fieldNumber}`;
 
-                    if (bsonTag) {
-                        tags += ` bson:\\"${bsonTag}\\"`;
+                    if (jsonTag || bsonTag || validateTag) {
+                        let tags = `\n     json_name = "${jsonTag ? jsonTag.split(',')[0] : fieldName}",\n     (tagger.tags) = "`;
+
+                        if (jsonTag) {
+                            tags += `json:\\"${jsonTag}\\"`;
+                        }
+
+                        if (bsonTag) {
+                            tags += ` bson:\\"${bsonTag}\\"`;
+                        }
+
+                        if (validateTag) {
+                            tags += ` validate:\\"${validateTag}\\"`;
+                        }
+
+                        tags += ` "`;
+                        protoMessage += ` [${tags}\n  ];\n\n`;
+                    } else {
+                        protoMessage += ';\n\n';
                     }
-
-                    if (validateTag) {
-                        tags += ` validate:\\"${validateTag}\\"`;
-                    }
-
-                    tags += ` "`;
-
-                    protoMessage += `  ${protoType} ${fieldName} = ${fieldNumber} [${tags}\n  ];\n\n`;
 
                     fieldNumber++;
                 }
             });
 
             protoMessage += `}`;
+            document.getElementById("message").innerHTML = fieldNumber - 1
 
             return protoMessage;
         }
